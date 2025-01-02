@@ -1,0 +1,194 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Review Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: linear-gradient(145deg, #d1c4e9, #b39ddb);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .dashboard-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            width: 100%;
+            padding: 20px;
+        }
+        .chart {
+            width: 40%;
+            min-height: 400px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            padding: 20px;
+        }
+        #upload-container {
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            padding: 20px;
+            text-align: center;
+        }
+        label {
+            font-size: 18px;
+            color: #fff;
+        }
+        input[type="file"] {
+            margin-top: 10px;
+            font-size: 16px;
+        }
+        h1 {
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <h1>Interactive Customer Review Dashboard</h1>
+    <div id="upload-container">
+        <label for="file-upload">Upload JSON File:</label>
+        <input type="file" id="file-upload" accept="application/json">
+    </div>
+    <div class="dashboard-container">
+        <div id="overall-experience-chart" class="chart"></div>
+        <div id="nps-chart" class="chart"></div>
+        <div id="service-area-chart" class="chart"></div>
+        <div id="purpose-ratings-chart" class="chart"></div>
+        <div id="discovery-channel-chart" class="chart"></div>
+    </div>
+
+    <script>
+        document.getElementById('file-upload').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const data = JSON.parse(e.target.result);
+                    generateDashboard(data);
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        function generateDashboard(data) {
+            // 1. Overall Experience Distribution
+            const experienceCounts = [1, 2, 3, 4, 5].map(rating => {
+                return data.filter(item => item["Rate your overall experience in our hotel"] === rating).length;
+            });
+
+            Plotly.newPlot('overall-experience-chart', [{
+                x: [1, 2, 3, 4, 5],
+                y: experienceCounts,
+                type: 'bar',
+                marker: { color: 'skyblue' },
+            }], {
+                title: 'Overall Experience Distribution',
+                xaxis: { title: 'Ratings' },
+                yaxis: { title: 'Count' }
+            });
+
+            // 2. NPS Analysis
+            const promoters = data.filter(item => item["How likely are you to recommend us to a friend or colleague?"] >= 9).length;
+            const passives = data.filter(item => item["How likely are you to recommend us to a friend or colleague?"] >= 7 && item["How likely are you to recommend us to a friend or colleague?"] < 9).length;
+            const detractors = data.filter(item => item["How likely are you to recommend us to a friend or colleague?"] < 7).length;
+
+            Plotly.newPlot('nps-chart', [{
+                labels: ['Promoters', 'Passives', 'Detractors'],
+                values: [promoters, passives, detractors],
+                type: 'pie',
+            }], {
+                title: 'Net Promoter Score (NPS) Analysis'
+            });
+
+            // 3. Service Area Ratings
+            const serviceAreas = ['Staff attitude', 'Check-in Process', 'Room service', 'Room cleanliness', 'Food quality', 'Variety of food', 'Broadband & TV', 'Gym'];
+            const serviceRatings = serviceAreas.map(area => {
+                const ratings = { Excellent: 0, 'Very good': 0, Good: 0, Poor: 0 };
+                data.forEach(item => {
+                    ratings[item[area]] = (ratings[item[area]] || 0) + 1;
+                });
+                return ratings;
+            });
+
+            const radarData = serviceAreas.map((area, index) => {
+                return {
+                    r: Object.values(serviceRatings[index]),
+                    theta: Object.keys(serviceRatings[index]),
+                    name: area,
+                    type: 'scatterpolar',
+                    fill: 'toself'
+                };
+            });
+
+            Plotly.newPlot('service-area-chart', radarData, {
+                polar: { radialaxis: { visible: true } },
+                title: 'Service Area Ratings'
+            });
+
+            // 4. Purpose vs. Ratings
+            const purposes = [...new Set(data.map(item => item["Purpose of the visit"]))];
+            const purposeRatings = purposes.map(purpose => {
+                return [1, 2, 3, 4, 5].map(rating => {
+                    return data.filter(item => item["Purpose of the visit"] === purpose && item["Rate your overall experience in our hotel"] === rating).length;
+                });
+            });
+
+            const purposeTraces = purposes.map((purpose, index) => {
+                return {
+                    x: [1, 2, 3, 4, 5],
+                    y: purposeRatings[index],
+                    name: purpose,
+                    type: 'bar'
+                };
+            });
+
+            Plotly.newPlot('purpose-ratings-chart', purposeTraces, {
+                title: 'Purpose of Visit vs. Ratings',
+                barmode: 'group',
+                xaxis: { title: 'Ratings' },
+                yaxis: { title: 'Count' }
+            });
+
+            // 5. Discovery Channel vs. Ratings
+            const discoveryChannels = [...new Set(data.map(item => item["How did you discover us?"]))];
+            const discoveryRatings = discoveryChannels.map(channel => {
+                return [1, 2, 3, 4, 5].map(rating => {
+                    return data.filter(item => item["How did you discover us?"] === channel && item["Rate your overall experience in our hotel"] === rating).length;
+                });
+            });
+
+            const discoveryTraces = discoveryChannels.map((channel, index) => {
+                return {
+                    x: [1, 2, 3, 4, 5],
+                    y: discoveryRatings[index],
+                    name: channel,
+                    type: 'bar'
+                };
+            });
+
+            Plotly.newPlot('discovery-channel-chart', discoveryTraces, {
+                title: 'Discovery Channel vs. Ratings',
+                barmode: 'group',
+                xaxis: { title: 'Ratings' },
+                yaxis: { title: 'Count' }
+            });
+        }
+    </script>
+</body>
+</html>
